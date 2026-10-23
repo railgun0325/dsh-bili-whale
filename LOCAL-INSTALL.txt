@@ -1,0 +1,22 @@
+Upgraded 2026-10-23 to upstream v0.4.5 (ef3f741) by three-way merge with all local patches kept; see CHANGELOG「本机：合并上游 v0.4.5」.
+Pre-upgrade backup (plugin + config + workspace entry files): /Users/railgun/.dsh/backups/dsh-bili-whale-0.2.0-local-20261023-195739
+
+Installed 2026-10-20 from Alterssss/dsh-bili-whale commit d786c90276c035a77f8b06775f362e9294c728f0, version 0.2.0.
+Bundle entry deliberately disabled pending dedicated Bilibili account and host compatibility acceptance.
+No credentials copied from OpenBiliClaw. Automatic sharing, listening and notifications disabled.
+
+Local compatibility changes, 2026-10-20 (not activated):
+- lib/index.js and lib/scheduler.js: bundled Node lookup uses node.exe on Windows and node on other platforms; DSH_NODE override and existing fallback order retained.
+- lib/scheduler.js: stop() is idempotent, clears all four intervals (including DM) and all four startup timeouts, and stops the live listener.
+- Stopped guards prevent stale timer callbacks, invalidate(), and pending session creation / DM / comment / live results from initiating a new wake after stop. Already submitted DSH turns are not cancelled.
+- No changes to authentication, settings registration, persona, credentials, profile configuration, or bundle activation. cordis.patch.yml remains disabled: true.
+
+Original files and hashes:
+/Users/railgun/MAC/work/dsh-bili-whale-deploy-20261020/backup/pre-mac-lifecycle/
+Patch and regression evidence:
+/Users/railgun/MAC/work/dsh-bili-whale-deploy-20261020/evidence/mac-lifecycle.patch
+/Users/railgun/MAC/work/dsh-bili-whale-deploy-20261020/evidence/mac-lifecycle-validation.json
+
+Isolated regression command (no real timers, subprocesses, filesystem state, credentials, network, or DSH calls; source files are read only):
+node --experimental-vm-modules --test tests/local-compatibility.test.mjs
+Seven checks cover both platform resolvers, complete timer cleanup, normal wake behavior, stopped wake/skip creation, late DM results, late comment results, and late live-listener callbacks.

@@ -24,6 +24,8 @@ export { configPath } from './paths.mjs'
 
 /** 中性默认值：不含任何作者的个人信息，换个人也能跑。 */
 export const DEFAULTS = {
+  // No implicit modelSelection: the dedicated Host binding requires an explicit route.
+  session: { id: 'bili-whale', cwd: HOME },
   persona: {
     name: '<角色名>',
     ownerTitle: '你',      // 助手怎么称呼使用者
@@ -42,10 +44,11 @@ export const DEFAULTS = {
   quota: { shareDaily: 3 },
   // 「标尺」（2026-10-18 加）：分享前必须打分，不到 share.minScore 就是"今天没有值得发的"（合法结果）
   share: { enabled: true, via: 'comment', minScore: 13, silentAfterDays: 3 },  // 分享型（@主人）开关与评分阈值
+  interaction: { enabled: false, daily: 3, topLevelDaily: 1, replyDaily: 2, minIntervalSec: 1200, maxChars: 160, noMention: true, stopOnRisk: true, maxListenerWakesPerDay: 2, maxEventsPerWake: 1, maxRunMinutes: 12 },
   // 倾听（2026-10-18 补默认值，与设置页对齐）：评论区 + 直播间
   listen: { comment: true, commentIntervalSec: 300, scope: 'both', oncePerPerson: false, allDay: false, dm: false, live: false, liveRoom: '', liveScope: 'owner' },
   // 作息：windows[] = 每天允许醒来的时段（每个窗口 = 一次机会）；maxWakesPerDay 缺省 = 窗口数（硬上限 3）
-  night: { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5 },
+  night: { enabled: true, windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5 },
 }
 
 const merge = (base, over) => {

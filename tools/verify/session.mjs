@@ -1,8 +1,9 @@
 // 先确认"这串 cookie 是哪个号"——任何写操作之前都该跑一次。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = path.join(dataHome(), '.bili-ai', 'credentials.json')
 if (!fs.existsSync(credPath)) {
   console.error(`缺少凭据文件: ${credPath}`)
   console.error('内容应为 {"sessdata":"…","bili_jct":"…","buvid3":"…"}（见 README「凭据」一节）')

@@ -12,7 +12,8 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs"
+    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs",
+    "test:local": "node --experimental-vm-modules --test tests/data-home.test.mjs tests/comment-share-mention.test.mjs tests/debrief-args.test.mjs tests/interaction-gate.test.mjs tests/interaction-gate-cli.test.mjs tests/offpeak-policy.test.mjs tests/offpeak-clock.test.mjs tests/local-compatibility.test.mjs tests/offpeak-scheduler.test.mjs tests/session-model.test.mjs"
   },
   "main": "lib/index.js",
   "exports": {

@@ -6,24 +6,25 @@ import { apiGet } from '../lib/bili-api.mjs'
 //       node bili-watch.mjs BV1iLYm6VET3 4x4        → 16 格，看得更细
 //
 // 依赖：ffmpeg（查找顺序见 lib/ffmpeg.mjs：$FFMPEG → PATH → bin/ → ~/.dsh/bili-whale/bin → 本机剪映）
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { requireFfmpeg } from '../lib/ffmpeg.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { dataDshPath } from '../lib/paths.mjs'
 
 
 let FFMPEG
 try { FFMPEG = requireFfmpeg() } catch (e) { console.error(String(e.message)); process.exit(2) }
 const bvid = process.argv[2]
 const grid = (process.argv[3] ?? '3x3').toLowerCase()
-const outDir = process.argv[4] ?? dshPath('shots', 'video')
+const outDir = process.argv[4] ?? dataDshPath('shots', 'video')
 if (!bvid) { console.error('用法: node bili-watch.mjs <BV号> [列x行] [outDir]'); process.exit(2) }
 const [cols, rows] = grid.split('x').map(Number)
 if (!cols || !rows) { console.error('格子格式应是 3x3 这样'); process.exit(2) }
 const N = cols * rows
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 

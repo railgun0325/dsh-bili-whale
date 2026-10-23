@@ -20,7 +20,13 @@ export function windowsOf(cfg) {
     return { start, end, wrap: end > 1440, label: `${w.start}–${w.end}`, wakes: Math.min(12, Math.max(0, Math.floor(Number(w.wakes ?? 1) || 0))) }
   })
 }
-export const maxWakes = cfg => Math.min(12, windowsOf(cfg).reduce((n, w) => n + w.wakes, 0))
+// 本机补丁：maxWakesPerDay 是每日总上限，固定多窗口时也生效（缺省 = 各窗口次数之和）。
+export const maxWakes = cfg => {
+  const total = Math.min(12, windowsOf(cfg).reduce((n, w) => n + w.wakes, 0))
+  if (cfg.maxWakesPerDay === undefined) return total
+  const cap = Number(cfg.maxWakesPerDay)
+  return Number.isFinite(cap) ? Math.min(total, Math.max(0, Math.floor(cap))) : 0
+}
 export function occurrences(cfg, now = Date.now()) {
   const today = dayOf(now), yesterday = new Date(`${today}T00:00:00`)
   yesterday.setDate(yesterday.getDate() - 1)

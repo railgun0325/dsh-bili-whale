@@ -1,3 +1,4 @@
+import './helpers/isolated-home.mjs'   // 本机补丁：先隔离 HOME，再加载被测模块
 import test, { after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'

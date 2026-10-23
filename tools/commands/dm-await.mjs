@@ -6,10 +6,12 @@
 //     node dm-await.mjs --once --json --peek  持久化待交付消息，返回 receipt
 //     node dm-await.mjs --ack <receipt>    宿主成功接收后确认，不访问网络
 //     node dm-await.mjs --interval 20       持续轮询（插件里用 --once 自带循环 ✗）
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { config } from '../lib/config.mjs'
+import { ownerCommandsEnabled, verifyRemoteOwnerCommand } from '../lib/owner-command.mjs'
 
 const argv = process.argv.slice(2)
 const opt = {}
@@ -25,12 +27,13 @@ const ONCE = !!opt.once || BASE
 const JSONOUT = !!opt.json
 const PEEK = !!opt.peek
 
-const U = process.env.USERPROFILE || process.env.HOME || '/'
+const U = dataHome()
 const STATE = path.join(U, '.bili-ai', 'dm-await-state.json')
 const c = JSON.parse(fs.readFileSync(path.join(U, '.bili-ai', 'credentials.json'), 'utf8'))
 const cfg = config()
 const OWNER = String(cfg.owner?.mid ?? '').trim()
 const OWNER_NAME = String(cfg.owner?.name ?? '主人')
+const SELF = String(cfg.self?.mid ?? '')
 if (!OWNER) { console.error('✗ 配置里 owner.mid 为空'); process.exit(2) }
 
 const H = {
@@ -54,8 +57,12 @@ const parsed = (content) => {
 }
 
 async function poll() {
+  if (cfg.privateReply !== undefined) {
+    const nav = await (await fetch('https://api.bilibili.com/x/web-interface/nav', {headers:H,signal:AbortSignal.timeout(15000),redirect:'error'})).json()
+    if (!nav.data?.isLogin || !SELF || String(nav.data.mid) !== SELF || SELF === OWNER) return {ok:false,why:'登录身份失效或与配置不一致，已停止收信'}
+  }
   const u = 'https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&group_id=0&count=20&mobi_app=web'
-  const r = await fetch(u, { headers: H })
+  const r = await fetch(u, { headers: H, signal:AbortSignal.timeout(15000), redirect:'error' })
   const j = await r.json().catch(() => ({}))
   if (j.code !== 0) return { ok: false, why: `get_sessions code=${j.code} ${j.message ?? ''}` }
   const list = j.data?.session_list ?? []
@@ -65,7 +72,7 @@ async function poll() {
   const ts = Number(last.timestamp ?? 0)
   const text = parsed(last.content)
   const sender = Number(last.sender_uid ?? 0)
-  const fromOwner = String(sender) === OWNER      // 只有主人发的才算
+  const fromOwner = String(sender) === OWNER && [undefined, 1].includes(last.msg_type) // 只处理主人文字消息
   const key = String(last.msg_key ?? last.msg_seqno ?? crypto.createHash('sha256').update(JSON.stringify([ts, sender, text])).digest('hex'))
   return { ok: true, ts, key, text, fromOwner, unread: Number(mine.unread_count ?? 0) }
 }
@@ -80,13 +87,31 @@ if (BASE) {
 
 let st = loadState()
 if (st.owner && st.owner !== OWNER) st = {}
+if (cfg.privateReply !== undefined && st.selfMid !== SELF) st = {}
+// Administrative retry of an already requested owner task. The workspace model
+// cannot call dm-await; actual messages are reverified, never invented here.
+if(opt.requeue) {
+  if(!ownerCommandsEnabled(cfg))throw Error('主人独立通道未开启')
+  const key=String(opt.requeue)
+  if(st.pending && st.pending.key!==key)throw Error('已有其他待交付来信，不覆盖')
+  const u='https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?talker_id='+OWNER+'&session_type=1&size=100&mobi_app=web'
+  const j=await(await fetch(u,{headers:H,signal:AbortSignal.timeout(15000),redirect:'error'})).json()
+  if(j.code!==0)throw Error('无法核实历史主人来信')
+  const original=(j.data?.messages??[]).find(x=>String(x.msg_key??x.msg_seqno)===key && String(x.sender_uid)===OWNER && String(x.receiver_id)===SELF)
+  if(!original || Date.now()-Number(original.timestamp)*1000>86400000)throw Error('未找到最近一天对应的真实主人来信')
+  const pending={hit:true,mid:OWNER,selfMid:SELF,name:OWNER_NAME,key,text:parsed(original.content),ts:Number(original.timestamp),receipt:crypto.randomUUID()}
+  await verifyRemoteOwnerCommand({...pending,self:SELF,owner:OWNER},H)
+  saveState({...st,owner:OWNER,selfMid:SELF,pending})
+  console.log(JSON.stringify({queued:true,key,mid:OWNER}));process.exit(0)
+}
 // Scheduler delivery is two-phase: persist a receipt before returning a hit,
 // acknowledge only once the host accepts the prompt. Retries read the same hit.
 if (opt.ack) {
   if (!st.pending || st.pending.receipt !== String(opt.ack) || st.pending.mid !== OWNER) {
     console.error('私信确认凭据不匹配，未推进已读状态'); process.exit(2)
   }
-  saveState({ owner: OWNER, lastSeen: st.pending.ts, lastKey: st.pending.key, at: new Date().toISOString() })
+  const delivered = [...(st.delivered ?? []), st.pending].slice(-20)
+  saveState({ owner: OWNER, selfMid:SELF, lastSeen: st.pending.ts, lastKey: st.pending.key, delivered, at: new Date().toISOString() })
   console.log('私信交付已确认'); process.exit(0)
 }
 if (st.pending?.mid === OWNER) {
@@ -98,17 +123,17 @@ if (!r.ok) { console.error(`✗ ${r.why}`); process.exit(3) }
 const lastSeen = Number(st.lastSeen ?? 0)
 const hit = r.fromOwner && (r.ts > lastSeen || (r.ts === lastSeen && st.lastKey && r.key !== st.lastKey))
 if (hit) {
-  const result = { hit: true, mid: OWNER, name: OWNER_NAME, text: r.text, ts: r.ts, key: r.key }
+  const result = { hit: true, mid: OWNER, selfMid:SELF, name: OWNER_NAME, text: r.text, ts: r.ts, key: r.key }
   if (PEEK) {
     result.receipt = crypto.randomUUID()
-    saveState({ ...st, owner: OWNER, pending: result })
+    saveState({ ...st, owner: OWNER, selfMid:SELF, pending: result })
   } else saveState({ owner: OWNER, lastSeen: r.ts, lastKey: r.key, at: new Date().toISOString() })
   if (JSONOUT) console.log(JSON.stringify(result))
   else console.log(`DM_HIT mid=${OWNER} name=${OWNER_NAME} ts=${r.ts} text=${r.text.replace(/\n/g, ' ').slice(0, 200)}`)
   process.exit(0)
 }
 // 没命中：把 lastSeen 往前推（避免旧消息反复触发；但只在对方是主人时推）
-if (r.ts > lastSeen) saveState({ owner: OWNER, lastSeen: r.ts, lastKey: r.key, at: new Date().toISOString() })
-if (JSONOUT) console.log(JSON.stringify({ hit: false }))
+if (r.ts > lastSeen) saveState({ ...st, owner: OWNER, selfMid:SELF, lastSeen: r.ts, lastKey: r.key, at: new Date().toISOString() })
+if (JSONOUT) console.log(JSON.stringify({ hit: false, reason:r.why ?? '没有新的主人文字私信' }))
 else if (!ONCE) console.log('无新私信')
 process.exit(1)

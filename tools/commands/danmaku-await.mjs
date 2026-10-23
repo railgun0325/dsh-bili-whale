@@ -10,6 +10,7 @@
 //
 // 状态文件 %USERPROFILE%\.bili-ai\await-state.json 记录最后处理时间，
 // 启动时会用 gethistory 补一遍"我上任监听退出到这次启动之间"漏掉的弹幕。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
@@ -43,7 +44,7 @@ const ignoreUids = String(args.get('ignore-uid') ?? '')
 // （自身昵称见下方 SELF_NAMES：会从 nav 动态读取，昵称改了也不会漏判）
 if (!roomArg) { console.error('需要 --room <房间号>'); process.exit(2) }
 
-const credDir = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai')
+const credDir = path.join(dataHome(), '.bili-ai')
 const cred = JSON.parse(fs.readFileSync(path.join(credDir, 'credentials.json'), 'utf8'))
 const statePath = path.join(credDir, 'await-state.json')
 const state = fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, 'utf8')) : { lastTs: 0 }

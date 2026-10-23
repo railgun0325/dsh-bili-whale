@@ -1,7 +1,30 @@
 # dsh-bili-whale 0.4.5
 
+## 本机：已合并上游 v0.4.5（2026-10-23）
+
+本目录 = 上游 v0.4.5 + 本机补丁（详见 CHANGELOG「本机：合并上游 v0.4.5」）。验证命令：
+
+```bash
+npm test             # 上游 68 项（macOS 装了 DSH 时 missing runtime 那项必失败，上游原版亦然）
+npm run test:local   # 本机补丁 126 项
+```
+
+- 本机实际投递的唤醒/跳过提示是 `configuredWakePrompt` / `skipPrompt`（与工作区 `bili.mjs` 命令白名单配套）；上游 `wakePrompt` 保留给上游调用方。
+- 会话目录优先级：`session.cwd` → 上游 `home` → `DSH_HOME/whale-work`。
+- `night.maxWakesPerDay` 是每日总上限（0 = 不定时选片），在共享计划引擎里同样生效。
+
 每一版的改动见 [CHANGELOG.md](CHANGELOG.md)；GitHub 上全部 issue/PR 的逐条核对见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
 
+
+## 本地兼容补丁：工作区内的数据目录
+
+工具链支持可选的绝对路径 `BILI_WHALE_DATA_HOME`。未设置时沿用原用户目录；设置后，鲸鱼凭据、账本、反馈和待审记录使用 `<data-home>/.bili-ai/`，日记、事件、作息状态和素材使用 `<data-home>/.dsh/`。空值和相对路径会直接报错，避免意外读写另一个账户。
+
+在 DSH 的 `workspace-write` 会话中，可将它设为专属工作区里的 `data` 目录。只在该工作区的薄 CLI wrapper 中设置这个变量，再导入实际 `tools/bili.mjs`；其 Node 子进程会继承该变量。不要修改 `HOME`、`USERPROFILE` 或 DSH 的全局权限。`BILI_WHALE_CONFIG` 仍独立指向原设置文件；未指定时仍读取原用户目录的配置，默认会话 cwd 和 ffmpeg 安装位置查找也保持不变。
+
+迁移须在任务空闲且自动调度暂停时完成：备份鲸鱼专属数据，将 `.bili-ai` 以及使用中的鲸鱼日记/事件文件移入数据目录，并在原路径留下指向新位置的符号链接，使 Host 设置页与未设置新变量的外部 CLI 继续共享同一份状态和凭据。若使用 CLI `night`，它与 Host 共用的 `whale-night.json`、`whale-night.config.json`、`whale-wake` 也要保持同一份文件（含已累计唤醒数），不能产生两份计划。旧的全局 `shots` 不必移动，新素材写入数据目录下的 `.dsh/shots`。这项补丁不会自动迁移、复制凭据、修改 Host 配置或改变权限；直接编辑日记的提示词也需要指向新路径。
+
+离线回归：`node --test tests/data-home.test.mjs tests/comment-share-mention.test.mjs tests/debrief-args.test.mjs`。测试使用临时假凭据、拦截网络和外部进程，验证真实 CLI 子进程、账本/反馈/日记/素材路径及分享前写入探针；不登录或对外发送。
 
 > 给 DSH 装一条**有日子的鱼**：它自己按作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
 >
@@ -333,6 +356,48 @@ node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test
 
 MIT（见 `LICENSE`）。第三方与免责见 [`NOTICE.md`](NOTICE.md)。
 本项目是**个人自用工具的公开版**，与 B 站、DeepSeek 官方无隶属关系；用你自己的账号做事，后果自负。
+
+
+## 本机部署补丁：暂停与专属会话（2026-10-20）
+
+DSH 0.2.1-rc.2 下，在「设置 → 养鱼」可填写专属会话 ID、绝对工作目录，并单独关闭「启用生物钟」。对应配置：
+
+```json
+{
+  "session": { "id": "bili-whale", "cwd": "/absolute/path/to/whale-workspace" },
+  "night": { "enabled": false }
+}
+```
+
+旧配置未填写时保持原默认：`session.id=bili-whale`、`session.cwd=用户主目录`、`night.enabled=true`。工作目录中需要准备鲸鱼专用的 `AGENTS.md` 和 `bili.mjs` 工具入口；不会修改全局或其他 Bot 的指令。
+
+- 暂停后，宿主不再计划或定时唤醒（包括已有 wake/skip 计划）；保存设置与打开设置页仍可用。正在运行的聊天不会被强行中断，已提交的回合不会撤回。CLI `night plan` / `night clock` 启动时也遵守暂停设置；此前手动启动的独立 CLI clock 需单独停止。
+- 评论、私信、直播监听各有独立开关；完整待配置状态应同时设置 `listen.comment/dm/live=false`、`share.enabled=false`、`quota.shareDaily=0`、`notify.type=none`。
+- 每次唤醒先核对普通会话的 ID 和工作目录。已有会话直接复用，避免 DSH `create` 对已聊过的 ID 新建会话；不存在才创建并校验返回 ID。目录冲突、子代理 ID、创建失败均不发起 prompt。换工作目录时使用新的 ID。
+- 这不是系统权限沙箱：同一 macOS 用户下具备 shell 权限的其他 Bot 仍可能调用 CLI。专属工作目录与指令用于避免误用；不向其他 Bot 分发鲸鱼工具或登录凭据。
+
+离线验证：`node --experimental-vm-modules --test tests/local-compatibility.test.mjs`。测试使用假 DSH、假计时器/网络/凭据，CLI 暂停测试仅使用临时目录；不会登录或发送 B 站消息。
+
+
+### 本机会话模型绑定与中性选片提示
+
+在专属会话已创建且闲置时，将以下内容保存到共享配置的 `session` 对象（保留其 `id/cwd`）：
+
+```json
+"modelSelection": {
+  "provider": "deepseek-official",
+  "model": "deepseek-flash",
+  "reasoningEffort": "high"
+}
+```
+
+模型选择只接受已有的 `deepseek-official` / `deepseek-account` provider 和 `deepseek-flash`，不接受 API key。缺失配置或 Host 能力/模型不可用时停止，不继承 Codex 默认。设置 POST 保存及工具链独立进程冷读均保留此字段。
+
+- 首次无 prompt 绑定：向现有鉴权的 `/dsh-bili/api/session-model` 发送 `POST {}`。仅读取保存的配置，拒绝任意 HTTP 参数，固定 `bili-whale`，核对 cwd 与闲置状态。
+- 每次 scheduler 唤醒前重复绑定并记录该会话的 `model/selection`。本地适配器使用当前 DSH 0.2.1-rc.2 的 `resolveAgent` 和 `agents.selectForNextRequest`，不调用会改变全局默认的 `session/selectModel` 或 `agentDefaultModel.saveSelection`。Host 更改接口时失败关闭，需要重新审核。
+- 唤醒提示读取实际配置：初筛数量可调，文本优先、仅必要时抽帧；分享关闭/额度0只保留草稿，监听关闭不进行回复，`notify.type=none` 不额外发消息。跳过回合只记录真实计划原因，不编造生理情绪。
+
+部署验收由操作者完成：绑定前后比较 `session/modelCatalog` 的 `default`；`session/projections` 的 `modelSelection.next` 只证明配置已选定。首次真实轮次必须再检查 `request/header` 的 `data.config.provider/model/reasoningEffort`、工具执行和回合结束。不要将模型绑定成功等同于真实请求成功。
 
 <!-- 2026-10-21 issue#8 fix -->
 ## 安装前提（2026-10-21 补，Issue #8）

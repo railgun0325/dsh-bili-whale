@@ -12,6 +12,7 @@
 //     匿名✗ + 登录态✗ → 真的不存在
 //
 // 用法: node comment-exists.mjs <rpid> <aid> [bvid]
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -89,7 +90,7 @@ if (foundInMain) {
   process.exit(0)
 }
 try {
-  const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+  const cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
   const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
   const c = await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=1&oid=${AID}&root=${RPID}&pn=1&ps=20`, {
     headers: { 'user-agent': UA, referer: REF, cookie },

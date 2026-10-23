@@ -10,13 +10,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
-import { dshPath } from '../lib/paths.mjs'
+import { configPath, dataDshPath } from '../lib/paths.mjs'
+import { dataHome } from '../lib/data-home.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 
-const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const DSH = dshPath()
-const CFG = path.join(DSH, 'bili-whale.config.json')
+// 本机补丁：凭据 / 日记 / 自测标记随鲸鱼数据根走；配置仍走 configPath（含 BILI_WHALE_CONFIG）
+const HOME = dataHome()
+const CFG = configPath
 const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
 const OK = '✓'
 const NO = '✗'
@@ -73,7 +74,7 @@ for (const d of ['.bili-ai', '.dsh']) {
   const p = path.join(HOME, d)
   line(fs.existsSync(p) ? OK : NO, '目录 ' + d, p)
 }
-const DIARY = path.join(DSH, 'whale-diary.md')
+const DIARY = dataDshPath('whale-diary.md')
 line(fs.existsSync(DIARY) ? OK : WARN, '日记', fs.existsSync(DIARY) ? '已存在' : '还没建（她第一次醒来会写）')
 
 // ⑤ 依赖体检（直接调现成的 deps，别在这里重复实现 ✗）

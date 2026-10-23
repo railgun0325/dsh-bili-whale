@@ -10,10 +10,11 @@ import { apiGet } from '../lib/bili-api.mjs'
 //   2. subtitle_url 里的 auth_key 是**分钟级有效** → 拿到就得马上下载，且 **URL 不能截断**
 //      （尾部还有 `-0-<32位hex>`，截了同样 403）。
 //   3. 匿名拿不到 AI 字幕（返回 0 条）→ 必须带登录 cookie。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { dshPath } from '../lib/paths.mjs'
+import { dataDshPath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -25,7 +26,7 @@ for (let i = 0; i < argv.length; i += 1) {
 }
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
 const H = { 'user-agent': UA, referer: `https://www.bilibili.com/video/${bvid}/`, cookie }
@@ -90,7 +91,7 @@ try { body = JSON.parse(rawText).body ?? [] } catch { console.error('字幕不�
 if (!body.length) { console.error('字幕 JSON 里 body 是空的'); process.exit(5) }
 console.log(`字幕行数: ${body.length}   覆盖 ${fmt(body[0].from)} → ${fmt(body.at(-1).to ?? body.at(-1).from)}`)
 
-const outDir = typeof opt.out === 'string' ? opt.out : dshPath('shots', 'subs')
+const outDir = typeof opt.out === 'string' ? opt.out : dataDshPath('shots', 'subs')
 fs.mkdirSync(outDir, { recursive: true })
 const base = path.join(outDir, `${bvid}-${pick.lan}`)
 fs.writeFileSync(base + '.json', rawText)

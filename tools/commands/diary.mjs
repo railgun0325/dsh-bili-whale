@@ -12,10 +12,11 @@
 //
 // 关键约定（写进 AGENTS.md）：**自主发言之后必须主动通知主人**（notify_wechat），
 // 因为"她自己决定的对外动作"必须让主人事后可见 —— 这是 B 档能成立的前提。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
-import { dshPath } from '../lib/paths.mjs'
+import { dataDshPath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -27,12 +28,14 @@ for (let i = 1; i < argv.length; i += 1) {
   if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i] ?? true
   else if (!opt._a) opt._a = argv[i]
 }
-const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const DIARY = dshPath('whale-diary.md')
-const QUOTA = path.join(HOME, '.bili-ai', 'quota.json')
-const LOG = dshPath('whale-log.jsonl')
+const WHALE_DATA_HOME = dataHome()
+const DIARY = dataDshPath('whale-diary.md')
+const QUOTA = path.join(WHALE_DATA_HOME, '.bili-ai', 'quota.json')
+const LOG = dataDshPath('whale-log.jsonl')
 const today = () => new Date().toLocaleDateString('sv-SE')
-const hhmm = (iso) => String(iso).slice(11, 16)
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('zh-CN', { hour12: false }).slice(0, 5)
+const localDay = (iso) => new Date(iso).toLocaleDateString('sv-SE')
+const localStamp = (iso) => `${localDay(iso).slice(5)} ${hhmm(iso)}`
 
 if (cmd === 'log') {
   const kind = opt._a ?? 'event'
@@ -94,9 +97,8 @@ if (cmd === 'show' || !cmd) {
     const q = JSON.parse(fs.readFileSync(QUOTA, 'utf8'))
     // 2026-10-21 修（外部审计 #8）：账本里的 at 是 UTC ISO 串，直接 startsWith(本地日期)
     //   会把凌晨 0–8 点的发言算到"昨天"✗（quota.mjs 早就修过同一个坑，这里漏了）
-    //   统一先把时间戳转成本地日期再比 ✓
-    const dayOf = (at) => new Date(at).toLocaleDateString('sv-SE')
-    const todayLog = (q.log ?? []).filter((x) => dayOf(x.at) === today())
+    //   统一先把时间戳转成本地日期再比 ✓（本机补丁的 localDay 与之等价）
+    const todayLog = (q.log ?? []).filter((x) => localDay(x.at) === today())
     const auto = todayLog.filter((x) => x.auto).length
     // q.daily 早就不写盘了（save() 只持久化 {log}）→ 显示 undefined 会误导 ✗
     const dailyCap = Number(q.daily ?? q.shareDaily ?? 0)
@@ -111,7 +113,7 @@ if (cmd === 'show' || !cmd) {
   try { lines = fs.readFileSync(LOG, 'utf8').trim().split(/\r?\n/).filter(Boolean) } catch {}
   if (!lines.length) console.log('  （还没有事件记录 —— `diary log` 会往这里写）')
   for (const l of lines.slice(-6)) {
-    try { const e = JSON.parse(l); console.log(`  · ${String(e.at).slice(5, 16).replace('T', ' ')}  ${e.kind}  ${e.target ?? ''}  ${e.note ?? ''}`) } catch {}
+    try { const e = JSON.parse(l); console.log(`  · ${localStamp(e.at)}  ${e.kind}  ${e.target ?? ''}  ${e.note ?? ''}`) } catch {}
   }
   console.log('\n（她是主动来找你的：自主发言后必须 notify_wechat —— 见 AGENTS.md「日子」一节）')
   process.exit(0)

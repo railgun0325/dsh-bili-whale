@@ -13,6 +13,7 @@
 //
 // 配置（~/.dsh/bili-whale.config.json 的 notify 段）：
 //   { "type": "none|desktop|webhook|command", "url": "", "template": "text|markdown", "cmd": "" }
+import { dataHome } from '../lib/data-home.mjs'
 import { spawnSync } from 'node:child_process'
 import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
@@ -183,7 +184,7 @@ try {
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
-    const p = n.path ?? path.join(process.env.USERPROFILE || os.homedir(), '.dsh', 'whale-notify.log')
+    const p = n.path ?? path.join(dataHome(), '.dsh', 'whale-notify.log')
     if (DRY) { console.log(`[dry] 通知文件：${p}（不写入）`); process.exit(0) }
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.appendFileSync(p, JSON.stringify(payload) + '\n')

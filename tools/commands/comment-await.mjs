@@ -17,6 +17,7 @@
 //
 // 命中时打印一行 `COMMENT_HIT` 和一条完整的"回复坐标"（直接能拿去发 comment）
 // 退出码: 0 = 有命中 / 3 = 守到超时没命中 / 1 = 出错
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import { config } from '../lib/config.mjs'
 import path from 'node:path'
@@ -53,7 +54,7 @@ const INTERVAL = Math.max(60, Number(get('interval', String(config().listen?.com
 const ONLY_OWNER = args.includes('--only-owner')
 const QUIET = args.includes('--quiet')
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
 const H = makeHeaders(cred)
 
 const startedAt = Number(get('since', String(Math.floor(Date.now() / 1000))))

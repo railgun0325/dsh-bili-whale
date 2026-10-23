@@ -17,6 +17,7 @@
  */
 import os from 'node:os'
 import path from 'node:path'
+import { dataHome } from './data-home.mjs'
 
 /** 用户主目录（Windows 优先 USERPROFILE，保持与原实现一致）。 */
 export const HOME = process.env.USERPROFILE || process.env.HOME || os.homedir() || '.'
@@ -33,5 +34,19 @@ export const homePath = (...parts) => path.join(HOME, ...parts)
 /** 插件配置文件（保留 BILI_WHALE_CONFIG 覆盖）。 */
 export const configPath = process.env.BILI_WHALE_CONFIG || dshPath('bili-whale.config.json')
 
-/** Credentials are per OS user, independent of DSH_HOME. */
-export const credentialsPath = homePath('.bili-ai', 'credentials.json')
+// ── 本机补丁：鲸鱼应用数据目录（BILI_WHALE_DATA_HOME，见 README「本地兼容补丁」）──
+// 只重定向鲸鱼数据：凭据/账本/反馈/缓存在 <数据根>/.bili-ai，日记/事件/素材在 <数据根>/.dsh。
+// 配置文件、与宿主共用的作息状态、node 运行时和 ffmpeg 查找仍走上面的 HOME / DSH_HOME。
+/** 鲸鱼数据根：BILI_WHALE_DATA_HOME（必须是绝对路径）或用户主目录。 */
+export const DATA_HOME = dataHome()
+
+/** <数据根>/.bili-ai/…：凭据、账本、反馈、接口缓存。 */
+export const biliAiPath = (...parts) => path.join(DATA_HOME, '.bili-ai', ...parts)
+
+/** 日记、事件、素材：设置了 BILI_WHALE_DATA_HOME 时在 <数据根>/.dsh，否则仍在 DSH home。 */
+export const dataDshPath = (...parts) => (process.env.BILI_WHALE_DATA_HOME !== undefined
+  ? path.join(DATA_HOME, '.dsh', ...parts)
+  : dshPath(...parts))
+
+/** Credentials are per OS user, independent of DSH_HOME（本机补丁：随数据根重定向）. */
+export const credentialsPath = biliAiPath('credentials.json')

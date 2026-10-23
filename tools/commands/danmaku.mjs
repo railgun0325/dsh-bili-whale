@@ -6,6 +6,7 @@
 //                            [--reply-mid <uid> --reply-name <昵称>] [--reply-dmid <弹幕id>]
 //   node danmaku.mjs history --room 999999004
 //   node danmaku.mjs live    --room 999999004 --seconds 60 [--grep 关键词]
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
@@ -26,7 +27,7 @@ const isDry = args.has('dry')
 const isGo = args.has('go')
 if (!roomArg) { console.error('需要 --room <房间号>'); process.exit(2) }
 
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = path.join(dataHome(), '.bili-ai', 'credentials.json')
 if (!fs.existsSync(credPath)) { console.error(`缺少凭据文件: ${credPath}`); process.exit(3) }
 const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
 for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

@@ -2,6 +2,7 @@
 //   "/x/dynamic/feed/" + (dyn_id_str ? "edit" : "create") + "/dyn"
 // 用法: node edit-dynamic.mjs <dyn_id> <文本文件> [--go]
 //   不给 --go 就只打印将要发送的 payload（预演）。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
@@ -13,7 +14,7 @@ const textFile = process.argv[3]
 const go = process.argv.includes('--go')
 if (!dyn || !textFile) { console.error('用法: node edit-dynamic.mjs <dyn_id> <文本文件> [--go]'); process.exit(2) }
 
-const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = {
   'user-agent': UA,

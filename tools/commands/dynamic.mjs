@@ -4,6 +4,7 @@
 //   node bili-dynamic.mjs list
 //   node bili-dynamic.mjs post --text "..." --dry | --go
 //   node bili-dynamic.mjs rm --id <dyn_id> --dry | --go
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -23,7 +24,7 @@ const isGo = args.has('go')
 const text = args.get('text')
 const dynId = args.get('id')
 
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = path.join(dataHome(), '.bili-ai', 'credentials.json')
 if (!fs.existsSync(credPath)) { console.error(`缺少凭据文件: ${credPath}`); process.exit(3) }
 const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
 for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

@@ -6,11 +6,12 @@
 //
 // 为什么这么做（2026-10-14 主人定的方向）：主人要的是"有日子的鱼"，
 // 所以"看什么"不该由别人喂，而该由她自己的偏好决定 —— 偏好写在日记里，这个脚本只负责照它去捞。
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
-import { dshPath } from '../lib/paths.mjs'
+import { dataDshPath } from '../lib/paths.mjs'
 
 
 const argv = process.argv.slice(2)
@@ -26,10 +27,12 @@ const PER = Number(opt.per ?? 2)
 //   代价：每个关键词多抓几条（搜索请求数不变 ✓ 只是每页多取几条 ✓）
 const POOL = Number(opt.pool ?? 60)
 
-const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
-const diary = dshPath('whale-diary.md')
+const WHALE_DATA_HOME = dataHome()
+// 本机补丁：上游新增的 .bili-ai 读写（feedback / favorites）也随数据根走
+const HOME = WHALE_DATA_HOME
+const diary = dataDshPath('whale-diary.md')
 // 2026-10-18：审计表挪到 `~/.bili-ai/` ✓（原来写死作者机器路径 ✗ 换机器就写不进去，静默失效 ✗）
-const audit = path.join(HOME, '.bili-ai', 'commented-videos.md')
+const audit = path.join(WHALE_DATA_HOME, '.bili-ai', 'commented-videos.md')
 
 // ── 偏好与"看过"名单：都从日记里读 ──
 let prefs = [...(config().preferences?.like ?? [])]   // 偏好来自统一配置（首选）
@@ -46,7 +49,7 @@ try {
   for (const bv of fs.readFileSync(audit, 'utf8').matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seen.add(bv[0])
 } catch { /* 没有审计表也无妨 */ }
 
-const cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
+const cred = JSON.parse(fs.readFileSync(path.join(WHALE_DATA_HOME, '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://search.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]

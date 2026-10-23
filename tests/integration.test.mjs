@@ -29,6 +29,7 @@ test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_
 test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
 test('DM delivery retries persisted message and acknowledges only after success',t=>{const r=run(sandbox(t),'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})
+test('bounded owner DM delivery preserves receipt and stops at daily model budget',t=>{const env=sandbox(t);env.TEST_BOUNDED_DM='1';const r=run(env,'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})
 test('dynamic root comment check uses type 11 and normalizes root zero',t=>{
  const env=sandbox(t)
  const r=run(env,'tools/commands/comment.mjs',['--oid','1','--root','0','--parent','9','--type','11','--check'])
@@ -75,3 +76,5 @@ test('notify returns failure when DM delivery fails',t=>{
   const r=run(env,'tools/commands/notify.mjs',['summary'])
   assert.notEqual(r.status,0);assert.equal((requests(env).match(/POST/g)??[]).length,0)
 })
+
+test('DM cooldown defers an incoming message without consuming it',t=>{const env=sandbox(t);env.TEST_BOUNDED_DM='1';env.TEST_DM_COOLDOWN='1';const r=run(env,'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})

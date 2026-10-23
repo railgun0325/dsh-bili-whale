@@ -11,10 +11,14 @@
 //   node dm.mjs --msg "…" --dry
 //   node dm.mjs --msg "…" --go
 //   node dm.mjs --status            （看今天额度 + 互关状态）
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { config } from '../lib/config.mjs'
+import { config, configPath } from '../lib/config.mjs'
+import { dmReplyPolicy, previewDmReply, executeDmReply } from '../lib/dm-reply-policy.mjs'
+import { activityAllowed } from '../../lib/offpeak.js'
+import { ownerCommandsEnabled, previewOwnerAction, executeOwnerAction, receivedOwnerCommand, assertOwnerSafety, verifyRemoteOwnerCommand } from '../lib/owner-command.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
 
@@ -22,8 +26,7 @@ import { gate, record } from '../lib/quota-gate.mjs'
 //   · 存在 ~/.bili-ai/dev_id（0600）
 //   · 写坏了/删了会自动重建（重建等于"换了台设备"，但只发生一次 ✓）
 function stableDevId() {
-  const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-  const file = path.join(HOME, '.bili-ai', 'dev_id')
+  const file = path.join(dataHome(), '.bili-ai', 'dev_id')
   try {
     const v = fs.readFileSync(file, 'utf8').trim()
     if (/^WEB-[0-9A-F-]{20,}$/i.test(v)) return v
@@ -57,13 +60,17 @@ const DRY = !!opt.dry
 const GO = !!opt.go
 const STATUS = !!opt.status
 const MSG = String(opt.msg ?? '').trim()
+const OWNER_KEY = opt['owner-command'] ?? opt['reply-to']
+const OWNER_COMMAND = !SHARE && !!OWNER_KEY && ownerCommandsEnabled(config())
+if(opt['owner-command'] && !OWNER_COMMAND){console.error('主人指令通道未开启，或混用了--share');process.exit(2)}
+if(opt['owner-command'] && opt['reply-to'] && opt['owner-command']!==opt['reply-to']){console.error('主人消息key不一致');process.exit(2)}
 if (SHARE && !STATUS) {
   try { validateShare(config(), opt) } catch (e) { console.error(e.message); process.exit(2) }
 }
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
-const QUOTA = path.join(HOME, '.bili-ai', 'dm-quota.json')
+const WHALE_DATA_HOME = dataHome()
+const CRED = path.join(WHALE_DATA_HOME, '.bili-ai', 'credentials.json')
+const QUOTA = path.join(WHALE_DATA_HOME, '.bili-ai', 'dm-quota.json')
 // 2026-10-21：用共用凭据层（trim + 缺字段检查 + 错误码翻译）
 //   以前这里直接 JSON.parse 就用：bili_jct 空着也照发 → B站回裸的 code=-111，
 //   用户看到"体检全绿 / 能查互关"却发不出去，完全不知道该改什么 ✗
@@ -86,6 +93,24 @@ if (!looksLikeJct(cred.bili_jct)) {
 const cfg = config()
 const OWNER = String(cfg.owner?.mid ?? '').trim()
 const OWNER_NAME = String(cfg.owner?.name ?? '主人')
+// This installation opts into bounded replies. Legacy explicit share handling
+// retains its own gate; a model cannot enable it through the workspace wrapper.
+let replyPermit = null
+let ownerPermit = null
+const replyRequest = { replyTo: opt['reply-to'], message: MSG }
+const inboxFile = path.join(WHALE_DATA_HOME, '.bili-ai', 'dm-await-state.json')
+if(!STATUS) {
+  try {assertOwnerSafety(WHALE_DATA_HOME,cfg)}catch(e){console.error(e.message);process.exit(4)}
+}
+if(OWNER_COMMAND && !STATUS) {
+  try {ownerPermit=previewOwnerAction({dataDir:WHALE_DATA_HOME,config:cfg,key:OWNER_KEY,request:{action:'dm',message:MSG}})}catch(e){console.error(e.message);process.exit(4)}
+} else if (!SHARE && !STATUS && cfg.privateReply !== undefined) {
+  try {
+    replyPermit = dmReplyPolicy(cfg, replyRequest, JSON.parse(fs.readFileSync(inboxFile, 'utf8')))
+    if (!activityAllowed(cfg).allowed) throw Error('当前不在允许的低价作息窗口，私信延后')
+    previewDmReply(path.dirname(QUOTA), replyPermit)
+  } catch(e) { console.error(e.message); process.exit(4) }
+}
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = {
@@ -93,7 +118,7 @@ const H = {
   referer: 'https://www.bilibili.com/',
   cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`,
 }
-const jget = async (u) => (await fetch(u, { headers: H })).json()
+const jget = async (u) => (await fetch(u, { headers: H, signal: AbortSignal.timeout(20000), redirect: 'error' })).json()
 const loadQ = () => { try { return JSON.parse(fs.readFileSync(QUOTA, 'utf8')) } catch { return {} } }
 const saveQ = (o) => { fs.mkdirSync(path.dirname(QUOTA), { recursive: true }); fs.writeFileSync(QUOTA, JSON.stringify(o, null, 2) + '\n') }
 const today = () => new Date().toLocaleDateString('sv-SE')
@@ -110,6 +135,7 @@ const SHARE_TARGET = targetBV ? "BV:" + targetBV : "dm:" + ONLY_TO
 async function me() {
   const nav = await jget('https://api.bilibili.com/x/web-interface/nav')
   if (!nav.data?.isLogin) { console.error('✗ 未登录（cookie 失效 ✗）'); process.exit(3) }
+  if (cfg.privateReply !== undefined && String(nav.data.mid) !== String(cfg.self?.mid)) throw Error('私信登录身份与配置不一致，拒绝发送')
   return { mid: String(nav.data.mid), uname: nav.data.uname }
 }
 
@@ -153,6 +179,7 @@ async function send(toMid, text) {
     method: 'POST',
     headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
+    signal: AbortSignal.timeout(20000), redirect: 'error',
   })
   const j = await r.json().catch(() => ({}))
   return { http: r.status, code: j.code, message: j.message, data: j.data }
@@ -166,7 +193,7 @@ if (STATUS) {
   console.log(`账号: ${meInfo.uname}（mid ${meInfo.mid}）`)
   console.log(`专属对象: ${OWNER_NAME}（mid ${ONLY_TO || '未配置'}）`)
   console.log(`今天锁定给: ${lockedToday || '（还没发过）'}${lockedToday && lockedToday !== ONLY_TO ? '  ⚠️ 和当前配置不一致 ✗' : ''}`)
-  console.log(`今日已发: ${q.date === today() ? Number(q.count ?? 0) : 0} 条（**条数不限** ✓ 只限收信人 ✓）`)
+  console.log(`今日已发: ${q.date === today() ? Number(q.count ?? 0) : 0} 条${cfg.privateReply ? `（自动回复上限 ${cfg.privateReply.daily} 次尝试）` : '（旧式手动通道）'}`)
   console.log(`互关状态: attribute=${rel.attribute} ${rel.attribute === 6 ? '（✓ 互关，可以发）' : '（✗ 不是互关，发不出去）'}`)
   for (const line of relationLines(rel, meInfo)) console.log(line)
   if (!rel.ok) process.exit(3)
@@ -177,10 +204,11 @@ if (!MSG) { console.error('用法: node dm.mjs --msg "…" [--share --target BV�
 
 // ── 闸门（写死，不接受参数覆盖）──────────────────────────────────────
 if (!OWNER) { console.error('✗ 配置里 owner.mid 为空 —— 私信只发给主人，没配就不发'); process.exit(2) }
-if (MSG.length > 300) { console.error(`✗ 私信太长（${MSG.length} > 300 字），退化成刷屏了 ✗`); process.exit(2) }
+if (MSG.length > (OWNER_COMMAND?1000:300)) { console.error('单条私信太长，请分条发送'); process.exit(2) }
 
 const meInfo = await me()
 if (String(meInfo.mid) === ONLY_TO) { console.error('✗ 不能给自己发私信'); process.exit(2) }
+if(OWNER_COMMAND) await verifyRemoteOwnerCommand(receivedOwnerCommand(WHALE_DATA_HOME,cfg,OWNER_KEY),H)
 
 const rel = await relation(ONLY_TO)
 if (!rel.ok) { console.error(`✗ ${rel.why}`); process.exit(3) }
@@ -210,7 +238,22 @@ if (SHARE) {
   if (!ok) { console.error('✗ 分享额度不允许（见上面的 [限额闸] 输出）'); process.exit(4) }
 }
 if (DRY) { console.log('  [dry] 预检通过，未发送 ✓ 正式发送时会重新检查额度'); process.exit(0) }
-const r = await send(ONLY_TO, MSG)
+const r = OWNER_COMMAND
+  ? await executeOwnerAction({dataDir:WHALE_DATA_HOME,config:cfg,key:OWNER_KEY,request:{action:'dm',message:MSG},send:async()=>{
+    const current=JSON.parse(fs.readFileSync(configPath,'utf8'))
+    const incoming=receivedOwnerCommand(WHALE_DATA_HOME,current,OWNER_KEY)
+    if(incoming.self!==ownerPermit.self || incoming.owner!==ownerPermit.owner)throw Error('发送前账号配置已变化')
+    return send(ONLY_TO,ownerPermit.message)
+  }})
+  : replyPermit
+  ? await executeDmReply(path.dirname(QUOTA), replyPermit, async () => {
+    const current = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    const fresh = dmReplyPolicy(current, replyRequest, JSON.parse(fs.readFileSync(inboxFile, 'utf8')))
+    if (fresh.self !== replyPermit.self || fresh.owner !== replyPermit.owner) throw Error('发送前账号配置已变化，停止')
+    if (!activityAllowed(current).allowed) throw Error('发送前已离开低价作息窗口，停止')
+    return send(ONLY_TO, MSG)
+  })
+  : await send(ONLY_TO, MSG)
 if (r.code === 0) {
   saveQ({ date: today(), count: used + 1, mid: ONLY_TO, at: new Date().toISOString() })
   if (SHARE) record({ type: 'dm', target: SHARE_TARGET, note: MSG.slice(0, 40), auto: true, share: true })

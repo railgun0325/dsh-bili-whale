@@ -1,5 +1,20 @@
 # 评论区操作
 
+## 本工具的分享评论与提及验收
+
+`comment --share --auto` 只提及配置中的使用者：`owner.name` 用于正文中的昵称，
+`owner.mid` 必须是正十进制安全整数（数字或数字字符串，不能超过 JavaScript 安全整数范围）。
+请求在签名前加入 `at_name_to_mid`，内容为 `{ "配置昵称": 配置UID }`；不会搜索或补全其他用户。
+缺少或无效的 UID、关闭 `share.enabled`、分数不在 0–20 或低于分享阈值时拒绝发送。
+普通非分享评论保持原行为，不自动加入这个映射。
+
+该参数做法参考 [OpenCLI 原仓评论实现](https://github.com/jackwener/opencli/blob/main/clis/bilibili/comment.js)
+及其 [请求参数测试](https://github.com/jackwener/opencli/blob/main/clis/bilibili/comment.test.js)。
+本地离线回归只证明请求构造和拒发边界，不能证明 B 站已经通知收件人。
+仍需独立小号就绪并获准实发后：先确认登录账号，发送一条，再用 `thread` 回读
+`content.members` 是否含配置的 `owner.mid`，并确认主号实际收到提及提醒。
+仅看到正文的 `@昵称` 或评论发布成功，不算提醒链路验收通过。
+
 ## 发表评论
 
 > https://api.bilibili.com/x/v2/reply/add

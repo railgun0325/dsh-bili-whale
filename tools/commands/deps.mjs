@@ -5,13 +5,15 @@
 //   node deps.mjs --json     机器读版（agent 判断用）
 //
 // 退出码：0 = 全可用；3 = 有缺的（缺的那项会写明补救办法）
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { ffmpegInfo } from '../lib/ffmpeg.mjs'
 import { apiState } from '../lib/bili-api.mjs'
+import { configPath, dshPath } from '../lib/paths.mjs'
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const cred = path.join(HOME, '.bili-ai', 'credentials.json')
+const WHALE_DATA_HOME = dataHome()
+const cred = path.join(WHALE_DATA_HOME, '.bili-ai', 'credentials.json')
 const asJson = process.argv.includes('--json')
 
 const items = []
@@ -61,7 +63,7 @@ items.push({
 // ④ 可写的家目录（放 cookie/配额/日记）
 let dirOk = false
 try {
-  const d = path.join(HOME, '.bili-ai')
+  const d = path.join(WHALE_DATA_HOME, '.bili-ai')
   fs.mkdirSync(d, { recursive: true })
   const probe = path.join(d, '.write-probe')
   fs.writeFileSync(probe, 'ok'); fs.unlinkSync(probe)
@@ -82,7 +84,7 @@ try {
   items.push({ name: 'node 运行时', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '设置 DSH_NODE' })
 }
 
-items.push({ name: '数据目录可写', ok: dirOk, detail: path.join(HOME, '.bili-ai'), fix: '检查该目录权限' })
+items.push({ name: '数据目录可写', ok: dirOk, detail: path.join(WHALE_DATA_HOME, '.bili-ai'), fix: '检查该目录权限' })
 // 2026-10-22：把「接口缓存 / 熔断」现状也列出来 ——
 //   被 412 限流时最想知道的就是「还要等多久」和「缓存里还有多少能撑」
 try {
@@ -103,13 +105,17 @@ try {
 //   ⚠️ deps.mjs 是独立进程，读不到插件内存里的 SCHED_STATUS
 //   → 只能从【配置 + 状态文件】推断 ✓
 try {
-  const cfgPath = process.env.BILI_WHALE_CONFIG || path.join(HOME, '.dsh', 'bili-whale.config.json')
-  const statePath = path.join(HOME, '.dsh', 'whale-night.json')
+  // 本机补丁：配置走 paths.mjs（含 BILI_WHALE_CONFIG / DSH_HOME）；作息状态与宿主共用 DSH home
+  const cfgPath = configPath
+  const statePath = dshPath('whale-night.json')
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
   const night = cfg.night ?? {}
   const windows = Array.isArray(night.windows) ? night.windows : []
   const maxW = Number(night.maxWakesPerDay ?? 1) || 1
-  if (!windows.length) {
+  if (night.enabled === false) {
+    // 本机补丁：设置里暂停了生物钟 → 不醒是预期行为，不算故障
+    items.push({ name: '生物钟', ok: true, detail: '已在设置里暂停（night.enabled=false）→ 不会自动醒', fix: '' })
+  } else if (!windows.length) {
     items.push({ name: '生物钟', ok: false, detail: '配置里没有任何作息窗口 → 永远不醒 ✗', fix: '设置页「作息」加一个窗口（例如 20:00–24:00，醒 1 次）' })
   } else {
     let st = null

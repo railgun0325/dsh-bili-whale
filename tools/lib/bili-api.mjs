@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { dataHome } from './data-home.mjs'
 
 const MIXIN = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
 const keyOf = u => String(u).split('/').at(-1).split('.')[0]
@@ -25,7 +26,8 @@ export function signWbi(params, images, now = Date.now()) {
 //   view 会被 recon/debrief/video/comments/subtitles/quota 各查一遍 ✗
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
+// 本机补丁：缓存 / 熔断 / 请求日志随鲸鱼数据根走（BILI_WHALE_DATA_HOME）
+const HOME = dataHome()
 const CACHE_FILE = path.join(HOME, '.bili-ai', 'api-cache.json')
 const BAN_FILE = path.join(HOME, '.bili-ai', 'api-ban.json')
 const CACHE_TTL_MS = 24 * 3600 * 1000

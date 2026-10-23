@@ -14,10 +14,11 @@ import { apiGet } from '../lib/bili-api.mjs'
 //   ⑤ 先 --dry 再 --go（和其它写操作一致）
 import fs from 'node:fs'
 import path from 'node:path'
-import { dshPath } from '../lib/paths.mjs'
+import { configPath } from '../lib/paths.mjs'
+import { dataHome } from '../lib/data-home.mjs'
 
 
-const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
+const HOME = dataHome()   // 本机补丁：收藏账本与凭据随鲸鱼数据根走
 const FAV_LOG = path.join(HOME, '.bili-ai', 'favorites.json')
 // 2026-10-21 修（外部审计 #10）：新用户跑 `fav --list` 会因为缺文件直接一脸 ENOENT ✗
 //   改成友好提示：--list 不需要凭据（只读本地账本），其它子命令才要 ✓
@@ -27,7 +28,7 @@ try {
   cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
 } catch {}
 try {
-  cfg = JSON.parse(fs.readFileSync(dshPath('bili-whale.config.json'), 'utf8'))
+  cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'))
 } catch {}
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3 ?? ''}`

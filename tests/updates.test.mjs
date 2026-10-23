@@ -1,3 +1,4 @@
+import './helpers/isolated-home.mjs'   // 本机补丁：先隔离 HOME，再加载被测模块
 import test from 'node:test'
 import { wakePrompt } from '../lib/scheduler.js'
 import assert from 'node:assert/strict'

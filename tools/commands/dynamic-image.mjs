@@ -6,6 +6,7 @@
 //      requests that would be sent. Uploads nothing.
 // go : uploads via x/dynamic/feed/draw/upload_bfs, then posts create/dyn with
 //      scene=2 and one pics entry. Prints the dyn_id and link.
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -73,7 +74,7 @@ if (!['png', 'jpg', 'gif'].includes(kind)) {
 if (!dims) { console.error('✗ 没解析出尺寸，无法组装 pics'); process.exit(5) }
 
 // ---- credentials -----------------------------------------------------------
-const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
+const credPath = path.join(dataHome(), '.bili-ai', 'credentials.json')
 if (!fs.existsSync(credPath)) { console.error(`缺少凭据文件: ${credPath}`); process.exit(3) }
 const cred = JSON.parse(fs.readFileSync(credPath, 'utf8'))
 for (const k of ['sessdata', 'bili_jct', 'buvid3']) {

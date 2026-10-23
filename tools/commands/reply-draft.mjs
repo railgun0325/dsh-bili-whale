@@ -14,6 +14,7 @@
 //   node reply-draft.mjs list [--json]
 //   node reply-draft.mjs drop <id>
 //   node reply-draft.mjs take <id>        （插件审批时用：取出参数并从队列删掉）
+import { dataHome } from '../lib/data-home.mjs'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -21,8 +22,8 @@ import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-const FILE = path.join(HOME, '.bili-ai', 'pending-replies.json')
+const WHALE_DATA_HOME = dataHome()
+const FILE = path.join(WHALE_DATA_HOME, '.bili-ai', 'pending-replies.json')
 
 const argv = process.argv.slice(2)
 const cmd = argv[0]

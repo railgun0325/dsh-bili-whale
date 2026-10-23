@@ -16,6 +16,7 @@ import { apiGet } from '../lib/bili-api.mjs'
 //      写操作（发/删评论）另见 comment.mjs，那是另一套（WBI + bili_jct）。
 import fs from 'node:fs'
 import path from 'node:path'
+import { dataHome } from '../lib/data-home.mjs'
 
 const argv = process.argv.slice(2)
 const bvid = argv.find((a) => !a.startsWith('--'))
@@ -40,7 +41,7 @@ const AS_JSON = Boolean(opt.json)
 // （search.mjs / subtitles.mjs 是硬读的；这里刻意容错，免得 PoC 之外的环境直接崩。）
 let cred = {}
 try {
-  cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
+  cred = JSON.parse(fs.readFileSync(path.join(dataHome(), '.bili-ai', 'credentials.json'), 'utf8'))
 } catch { /* 匿名 */ }
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = cred.sessdata ? `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct ?? ''}; buvid3=${cred.buvid3 ?? ''}` : ''

@@ -4,6 +4,11 @@ import cp from 'node:child_process'
 import {syncBuiltinESMExports} from 'node:module'
 import {Readable} from 'node:stream'
 import assert from 'node:assert/strict'
+if(process.env.TEST_NO_NODE) {
+  // PATH is insufficient on macOS: bundled and Homebrew paths are probed too.
+  const realSpawn=cp.spawnSync
+  cp.spawnSync=(exe,args,options)=>args[0]==='-e'?{status:1}:realSpawn(exe,args,options)
+}
 globalThis.setInterval=()=>({});globalThis.setTimeout=()=>({});globalThis.clearInterval=()=>{};globalThis.clearTimeout=()=>{}
 cp.execFile=(exe,args,options,cb)=>{
   if(args.includes('comment')) {
@@ -29,6 +34,7 @@ async function request(url,body={},method='POST') {
 }
 if(process.env.TEST_NO_NODE) {
   const r=await request('deps',{},'GET')
+  assert.ok(r.data.scheduler,JSON.stringify(r.data))
   assert.equal(r.data.scheduler.ok,false)
   assert.match(r.data.scheduler.reason,/node/)
 } else {
