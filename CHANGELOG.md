@@ -1,3 +1,9 @@
+## 本机：思考程度可调（2026-10-24）
+
+- 每次唤醒都会按 `session.modelSelection.reasoningEffort` 把会话模型绑定一次；本机原来是 `low`，思考偏浅 → 改为 `high`（可取 `off` / `low` / `high` / `max`）。
+- 设置页「专属会话」新增「思考程度」下拉，不用再手改配置文件；改完在**下一次唤醒**生效（绑定发生在唤醒前）。
+- 代码侧没有写死 `low`：`resolveWhaleModelSelection()` 只校验取值并原样下发给 Host，越高越慢越贵。
+
 ## 本机：合并上游 v0.4.5（2026-10-23）
 
 - 基线 0.2.0（d786c90）→ 上游 v0.4.5（ef3f741，63 个提交），三方合并保留全部本机补丁；合并前完整备份在 `/Users/railgun/.dsh/backups/dsh-bili-whale-0.2.0-local-20261023-195739`。
